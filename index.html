@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="author" content="TheJokr" />
+    <meta name="application-name" content="PapGen" />
+    <title>PapGen - Participation Statistics</title>
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-rwoIResjU2yc3z8GV/NPeZWAv56rSmLldC3R/AZzGRnGxQQKnKkoFVhFQhNUwEyJ" crossorigin="anonymous" />
+    <style>
+    .col-sm-auto {
+        padding-right: 15px;
+        padding-left: 15px;
+    }
+    #output table > tbody + tbody {
+        border-top: 0;
+    }
+    body > footer {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 20px;
+        border-top: 1px solid lightgray;
+        padding-top: 20px;
+        padding-bottom: 20px;
+
+        font-size: 80%;
+        color: slategray;
+    }
+    footer > ul {
+        display: flex;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+    footer > ul > li + li {
+        margin-left: 10px;
+    }
+    </style>
+</head>
+<body>
+    <main class="container" id="content">
+        <header class="row">
+            <div class="col">
+                <h1 class="display-4 text-center">XVMX Participation Statistics Generator</h1>
+            </div>
+        </header>
+        <section class="row justify-content-center" id="output" hidden="">
+            <div class="col-10 col-sm-6" id="out-main">
+                <table class="table table-bordered table-hover">
+                    <thead class="thead-inverse">
+                        <tr>
+                            <th>Character</th>
+                            <th># of paps</th>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
+            <div class="col-sm-6" id="out-addon" hidden="">
+                <table class="table table-bordered table-hover">
+                    <thead class="thead-inverse">
+                        <tr>
+                            <th>Character</th>
+                            <th># of paps</th>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
+        </section>
+        <section class="row justify-content-center" id="input">
+            <div class="col-10">
+                <form>
+                    <div class="form-group">
+                        <label for="members" class="h4">Member list</label>
+                        <textarea class="form-control" id="members" rows="6" required="" aria-describedby="members-desc"></textarea>
+                        <p class="form-text text-muted small" id="members-desc">
+                            One member per line, characters separated by comma, semicolon, colon, or tabulator.
+                            (Supports copy/pasting from tables, first character will be used as display name)
+                        </p>
+                    </div>
+                    <div class="form-group">
+                        <label for="paps" class="h4">Pap list</label>
+                        <textarea class="form-control" id="paps" rows="6" required="" aria-describedby="paps-desc"></textarea>
+                        <p class="form-text text-muted small" id="paps-desc">
+                            One character per line, number of paps separated by comma, semicolon, colon, or tabulator.
+                            (Supports copy/pasting from tables, first column is character name, last column is total number of paps)
+                        </p>
+                    </div>
+                    <div class="form-group row">
+                        <label class="col-sm-auto col-form-label" for="duration">Covered duration</label>
+                        <div class="col-sm-5 col-md-4 col-lg-3 input-group">
+                            <input type="number" class="form-control text-right" id="duration" min="1" value="7" required="" aria-describedby="duration-addon" />
+                            <span class="input-group-addon" id="duration-addon">days</span>
+                        </div>
+                    </div>
+                    <div class="form-group btn-group" role="group" aria-label="Submit/Reset">
+                        <button type="submit" class="btn btn-primary">Process</button>
+                        <button type="reset" class="btn btn-secondary">Reset</button>
+                    </div>
+                </form>
+            </div>
+        </section>
+    </main>
+    <footer class="container">
+        <ul>
+            <li><a href="#">Back to top</a></li>
+        </ul>
+        <ul>
+            <li><a href="https://github.com/XVMX/papgen/blob/master/LICENSE.md" rel="license external">License</a></li>
+            <li><a href="https://github.com/XVMX/papgen" rel="author external">Source code on GitHub</a></li>
+        </ul>
+    </footer>
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tether/1.4.0/js/tether.min.js" integrity="sha384-DztdAPBWPRXSA/3eYEEUWrWCy7G5KFbe8fFjk5JAIxUYHKkDx6Qin1DkWx51bBrb" crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/js/bootstrap.min.js" integrity="sha384-vBWWzlZJ8ea9aCX4pEW3rVHjgjt7zpkNpZk+02D9phzyeVkE+jo0ieGizqPLForn" crossorigin="anonymous"></script>
+    <script>
+    // Bootstrap xs breakpoint
+    var xs_down = window.matchMedia("(max-width: 575px)");
+    // Paps per day
+    const PRIMARY_PPD = 2.5, SUCCESS_PPD = 1.5, WARNING_PPD = 0.4, DANGER_PPD = 0;
+    // Converts text copied from a table into a 2d array
+    // Supported delimiters are newline for rows and comma, semicolon, colon, and tab for columns
+    function parseTableData(data) {
+        return data.split(/(?:\r?\n)+/).filter(function(val, idx, arr) {
+            return val.trim();
+        }).map(function(val, idx, arr) {
+            return val.split(/[,;:\t]/).map(function(val, idx, arr) {
+                return val.trim();
+            }).filter(Boolean);
+        });
+    }
+    function calcTotals(raw_members, raw_paps) {
+        // paps = {<Character>: <Total paps>}
+        var paps = {};
+        raw_paps.forEach(function(val, idx, arr) {
+            paps[val[0]] = Number.parseInt(val[val.length - 1]);
+        });
+
+        // [[<Member>, <Total paps>]], sorted by number of total paps in reverse
+        return raw_members.map(function(val, idx, arr) {
+            var total_paps = val.reduce(function(acc, val, idx, arr) {
+                return acc + (paps[val] || 0);
+            }, 0);
+            return [val[0], total_paps];
+        }).sort(function(a, b) { return a[1] - b[1]; }).reverse();
+    }
+    function updateStats(totals, days) {
+        var $out = $("#output");
+        const table_len = Math.ceil(totals.length / 2);
+        var $tbody = [$("<tbody></tbody>"), $("<tbody></tbody>")];
+
+        totals.forEach(function(val, idx, arr) {
+            var $row = $("<tr></tr>");
+            val.forEach(function(val, idx, arr) {
+                $row.append($("<td></td>").text(val));
+            });
+
+            var ppd = val[1] / days;
+            if (ppd >= PRIMARY_PPD) { $row.addClass("bg-primary"); }
+            else if (ppd >= SUCCESS_PPD) { $row.addClass("bg-success"); }
+            else if (ppd <= DANGER_PPD) { $row.addClass("bg-danger"); }
+            else if (ppd <= WARNING_PPD) { $row.addClass("bg-warning"); }
+
+            $tbody[idx < table_len ? 0 : 1].append($row);
+        });
+
+        $out.find("#out-main table").find("> tbody").remove().end().append($tbody);
+        resizeTable(xs_down, true);
+        $out.prop("hidden", false);
+    }
+    function resizeTable(query, update=false) {
+        var $out = $("#output");
+        if ($out.prop("hidden") && !update) { return; }
+
+        if (query.matches && !update) {
+            $out.find("#out-addon table > tbody").appendTo($out.find("#out-main table"));
+            $("#output #out-addon").prop("hidden", true);
+        } else if (!query.matches) {
+            $out.find("#out-main table > tbody:nth-of-type(2)").appendTo($out.find("#out-addon table"));
+            $("#output #out-addon").prop("hidden", false);
+        }
+    }
+    $(function() {
+        $("#input form").submit(function(e) {
+            e.preventDefault();
+            var members = parseTableData($(this).find("#members").val());
+            var paps = parseTableData($(this).find("#paps").val());
+            var days = Number.parseInt($(this).find("#duration").val());
+            updateStats(calcTotals(members, paps), days);
+        }).on("reset", function(e) {
+            $("#output").prop("hidden", true);
+        });
+        xs_down.addListener(resizeTable);
+    });
+    </script>
+</body>
+</html>
