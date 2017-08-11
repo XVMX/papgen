@@ -163,7 +163,8 @@
             $tbody[idx < table_len ? 0 : 1].append($row);
         });
 
-        $out.find("#out-main table").find("> tbody").remove().end().append($tbody);
+        $out.find("table > tbody").remove();
+        $out.find("#out-main table").append($tbody);
         resizeTable(xs_down, true);
         $out.prop("hidden", false);
     }
