@@ -233,9 +233,11 @@
         // Process data
         var paps = [], paps_label = [], paps_color = [], ppd = [0, 0, 0, 0, 0];
         totals.forEach(function(val, idx, arr) {
-            paps.push(val[1]);
-            paps_label.push(val[0]);
-            paps_color.push(PPD_COLOR[val[2] - 1]);
+            if (val[1] > 0) {
+                paps.push(val[1]);
+                paps_label.push(val[0]);
+                paps_color.push(PPD_COLOR[val[2] - 1]);
+            }
             ppd[val[2] - 1] += 1;
         });
         ppd = ppd.map(function(val, idx, arr) { return val > 0 ? val : null; });
