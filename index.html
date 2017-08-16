@@ -8,6 +8,12 @@
     <title>PapGen - Participation Statistics</title>
     <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-/Y6pD6FV/Vv2HJnA6t+vslU6fwYXjCFtcEpHbNJ0lyAFsXTsjBbfaDjzALeQsN6M" crossorigin="anonymous" />
     <style>
+    #charts > div {
+        position: relative;
+        width: 100%;
+        height: 300px;
+        margin-bottom: 1rem;
+    }
     #output table > tbody + tbody {
         border-top: 0;
     }
@@ -40,6 +46,14 @@
                 <h1 class="display-4 text-center">XVMX Participation Statistics Generator</h1>
             </div>
         </header>
+        <section class="row justify-content-center" id="charts" hidden="">
+            <div class="col-10 col-lg-6">
+                <canvas id="members-bars"></canvas>
+            </div>
+            <div class="col-10 col-lg-6">
+                <canvas id="ppd-donut"></canvas>
+            </div>
+        </section>
         <section class="row justify-content-center" id="output" hidden="">
             <div class="col-10 col-sm-6" id="out-main">
                 <table class="table table-bordered table-hover">
@@ -108,11 +122,27 @@
     <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.11.1/umd/popper.min.js" integrity="sha384-b/U6ypiBEHpOf/4+1nzFpr53nxSS+GLCkfwBdFNTxtclqqenISfwAzpKaMNFNmj4" crossorigin="anonymous"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta/js/bootstrap.min.js" integrity="sha384-h0AbiXch4ZDo7tp9hKZ4TsHbi047NrKGLO3SEJAg45jXxnGIfYzk4Si90RDIqNm1" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.6.0/Chart.min.js" integrity="sha384-nuT0qw6vBhqN718uyKaI6w1EXH49c5XiMUqmHEEiJadrKmJtmQOVVsd8vTgBpr8h" crossorigin="anonymous"></script>
     <script>
     // Bootstrap xs breakpoint
     var xs_down = window.matchMedia("(max-width: 575px)");
+    // Bootstrap colors: [Primary, Success, Dark, Warning, Danger]
+    const PPD_COLOR = ["#007bff", "#28a745", "#343a40", "#ffc107", "#dc3545"];
     // Paps per day
     const PRIMARY_PPD = 2.5, SUCCESS_PPD = 1.5, WARNING_PPD = 0.4, DANGER_PPD = 0;
+    const PPD = {
+        PRIMARY: 1,
+        SUCCESS: 2,
+        DEFAULT: 3,
+        WARNING: 4,
+        DANGER: 5
+    };
+    const PPD_LABEL = ["Awesome participation", "Good participation", "Average participation",
+                       "Low participation", "No participation"];
+    // Chart.js defaults
+    Chart.defaults.global.responsive = true;
+    Chart.defaults.global.maintainAspectRatio = false;
+
     // Converts text copied from a table into a 2d array
     // Supported delimiters are newline for rows and comma, semicolon, colon, and tab for columns
     function parseTableData(data) {
@@ -124,37 +154,50 @@
             }).filter(Boolean);
         });
     }
-    function calcTotals(raw_members, raw_paps) {
+    function calcTotals(raw_members, raw_paps, days) {
         // paps = {<Character>: <Total paps>}
         var paps = {};
         raw_paps.forEach(function(val, idx, arr) {
             paps[val[0]] = Number.parseInt(val[val.length - 1]);
         });
 
-        // [[<Member>, <Total paps>]], sorted by number of total paps in reverse
+        // [[<Member>, <Total paps>, <PPD class>]], sorted by number of total paps in reverse
         return raw_members.map(function(val, idx, arr) {
             var total_paps = val.reduce(function(acc, val, idx, arr) {
                 return acc + (paps[val] || 0);
             }, 0);
-            return [val[0], total_paps];
+
+            var ppd = PPD.DEFAULT;
+            var ppd_val = total_paps / days;
+            if (ppd_val >= PRIMARY_PPD) { ppd = PPD.PRIMARY; }
+            else if (ppd_val >= SUCCESS_PPD) { ppd = PPD.SUCCESS; }
+            else if (ppd_val <= DANGER_PPD) { ppd = PPD.DANGER; }
+            else if (ppd_val <= WARNING_PPD) { ppd = PPD.WARNING; }
+
+            return [val[0], total_paps, ppd];
         }).sort(function(a, b) { return a[1] - b[1]; }).reverse();
     }
-    function updateStats(totals, days) {
+    function updateTable(totals) {
         var $out = $("#output");
         const table_len = Math.ceil(totals.length / 2);
         var $tbody = [$("<tbody></tbody>"), $("<tbody></tbody>")];
 
         totals.forEach(function(val, idx, arr) {
             var $row = $("<tr></tr>");
-            val.forEach(function(val, idx, arr) {
+            val.slice(0, 2).forEach(function(val, idx, arr) {
                 $row.append($("<td></td>").text(val));
             });
 
-            var ppd = val[1] / days;
-            if (ppd >= PRIMARY_PPD) { $row.addClass("bg-primary"); }
-            else if (ppd >= SUCCESS_PPD) { $row.addClass("bg-success"); }
-            else if (ppd <= DANGER_PPD) { $row.addClass("bg-danger"); }
-            else if (ppd <= WARNING_PPD) { $row.addClass("bg-warning"); }
+            switch (val[2]) {
+                case PPD.PRIMARY:
+                    $row.addClass("bg-primary"); break;
+                case PPD.SUCCESS:
+                    $row.addClass("bg-success"); break;
+                case PPD.WARNING:
+                    $row.addClass("bg-warning"); break;
+                case PPD.DANGER:
+                    $row.addClass("bg-danger"); break;
+            }
 
             $tbody[idx < table_len ? 0 : 1].append($row);
         });
@@ -176,14 +219,87 @@
             $("#output #out-addon").prop("hidden", false);
         }
     }
+    function updateCharts(totals) {
+        var $chart = $("#charts");
+        var $canvas = $chart.find("#members-bars, #ppd-donut");
+
+        // Delete old charts
+        var [bars, donut] = [$chart.data("bars"), $chart.data("donut")];
+        try {
+            bars.destroy(); donut.destroy();
+        } catch (TypeError) {}
+
+        // Process data
+        var paps = [], paps_label = [], paps_color = [], ppd = [0, 0, 0, 0, 0];
+        totals.forEach(function(val, idx, arr) {
+            paps.push(val[1]);
+            paps_label.push(val[0]);
+            paps_color.push(PPD_COLOR[val[2] - 1]);
+            ppd[val[2] - 1] += 1;
+        });
+        ppd = ppd.map(function(val, idx, arr) { return val > 0 ? val : null; });
+
+        // Members bar chart
+        var bars = new Chart($canvas.eq(0), {
+            type: "bar",
+            data: {
+                labels: paps_label,
+                datasets: [{
+                    label: "# of paps",
+                    data: paps,
+                    backgroundColor: paps_color
+                }]
+            },
+            options: {
+                scales: {
+                    xAxes: [{
+                        ticks: {
+                            autoSkip: false
+                        }
+                    }],
+                    yAxes: [{
+                        ticks: {
+                            beginAtZero: true,
+                            min: 0,
+                            suggestedMax: 20
+                        }
+                    }]
+                }
+            }
+        });
+
+        // PPD donut chart
+        var donut = new Chart($canvas.eq(1), {
+            type: "doughnut",
+            data: {
+                labels: PPD_LABEL.slice().reverse(),
+                datasets: [{
+                    data: ppd.reverse(),
+                    backgroundColor: PPD_COLOR.slice().reverse()
+                }]
+            },
+            options: {}
+        });
+
+        $chart.data({
+            bars: bars,
+            donut: donut
+        });
+        $chart.prop("hidden", false);
+    }
     $(function() {
         $("#input form").submit(function(e) {
             e.preventDefault();
+
             var members = parseTableData($(this).find("#members").val());
             var paps = parseTableData($(this).find("#paps").val());
             var days = Number.parseInt($(this).find("#duration").val());
-            updateStats(calcTotals(members, paps), days);
+            var totals = calcTotals(members, paps, days);
+
+            updateTable(totals);
+            updateCharts(totals);
         }).on("reset", function(e) {
+            $("#charts").prop("hidden", true);
             $("#output").prop("hidden", true);
         });
         xs_down.addListener(resizeTable);
